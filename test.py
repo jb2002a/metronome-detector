@@ -15,7 +15,8 @@ RECORD_DURATION = 10  # 10초 녹음
 COUNTIN_DURATION = 3  # 3초 카운트인
 SOFTWARE_GAIN = 60.0
 METRONOME_BPM = 120  # 메트로놈 BPM
-CHROMATIC_ENABLED = True  # 크로매틱 클릭 활성화
+BLOCK_SIZE = 64  # 오디오 블록 크기
+CHROMATIC_ENABLED = True  # 시각화 그리드에는 8분음표 표시 (소리는 안 남)
 
 # 녹음 버퍼
 recorded_data = []
@@ -29,14 +30,7 @@ def generate_metronome_click(duration_ms=50, frequency=1000, sample_rate=44100):
     envelope = np.exp(-10 * t)
     return (tone * envelope * 0.3).astype(np.float32)
 
-def generate_chromatic_click(duration_ms=30, frequency=1500, sample_rate=44100):
-    samples = int(sample_rate * duration_ms / 1000)
-    t = np.linspace(0, duration_ms/1000, samples, False)
-    tone = np.sin(2 * np.pi * frequency * t)
-    envelope = np.exp(-15 * t)
-    return (tone * envelope * 0.2).astype(np.float32)
-
-def generate_countin_click(duration_ms=80, frequency=800, sample_rate=44100):
+def generate_countin_click(duration_ms=80, frequency=1200, sample_rate=44100):
     samples = int(sample_rate * duration_ms / 1000)
     t = np.linspace(0, duration_ms/1000, samples, False)
     tone = np.sin(2 * np.pi * frequency * t)
@@ -44,8 +38,8 @@ def generate_countin_click(duration_ms=80, frequency=800, sample_rate=44100):
     return (tone * envelope * 0.5).astype(np.float32)
 
 METRONOME_SOUND = generate_metronome_click()
-CHROMATIC_SOUND = generate_chromatic_click()
-COUNTIN_SOUND = generate_countin_click()
+# 첫 박자를 구분하고 싶을 경우 사용할 사운드
+DOWNBEAT_SOUND = generate_metronome_click(frequency=1200) 
 
 metronome_active = False
 current_beat = 0
@@ -65,25 +59,22 @@ def audio_callback(indata, outdata, frames, time_info, status):
     
     if metronome_active:
         for i in range(frames):
+            # 박자 간격(샘플 수)이 지나면 카운터 리셋 및 비트 증가
             if sample_counter >= beat_interval_samples:
                 sample_counter = 0
                 current_beat = (current_beat + 1) % 4
+            
+            # 모든 4박자(0, 1, 2, 3)에서 소리 발생
+            # 여기서는 8분음표 소리(CHROMATIC_SOUND) 로직을 제외하여 4비트로만 들리게 함
+            if sample_counter < len(METRONOME_SOUND):
+                # 첫 박자(강박)만 소리를 약간 다르게 하고 싶다면 아래 주석 해제 가능
+                # if current_beat == 0:
+                #     output_signal[i] += DOWNBEAT_SOUND[sample_counter]
+                # else:
+                #     output_signal[i] += METRONOME_SOUND[sample_counter]
+                output_signal[i] += METRONOME_SOUND[sample_counter]
+            
             sample_counter += 1
-        
-        # 카운트인과 녹음 모두 동일한 메트로놈 (4박 강약 없이 통일)
-        if sample_counter < len(METRONOME_SOUND):
-            click_len = min(len(METRONOME_SOUND) - sample_counter, frames)
-            output_signal[:click_len] += METRONOME_SOUND[sample_counter:sample_counter + click_len]
-        
-        # 크로매틱 클릭 (8분음표)
-        if CHROMATIC_ENABLED:
-            chromatic_position = beat_interval_samples // 2
-            if chromatic_position - 100 < sample_counter < chromatic_position + len(CHROMATIC_SOUND):
-                offset = sample_counter - chromatic_position
-                if 0 <= offset < frames:
-                    click_len = min(len(CHROMATIC_SOUND) - offset, frames - offset)
-                    if click_len > 0 and offset >= 0:
-                        output_signal[offset:offset + click_len] += CHROMATIC_SOUND[:click_len]
     
     output_signal = np.clip(output_signal, -1.0, 1.0)
     for i in range(outdata.shape[1]):
@@ -94,36 +85,28 @@ def create_waveform_with_metronome(audio_data, bpm, sample_rate):
     duration = len(audio_data) / sample_rate
     time_axis = np.linspace(0, duration, len(audio_data))
     
-    # Figure 설정
     fig, ax = plt.subplots(figsize=(18, 7), dpi=100)
     
     # 파형 그리기
     ax.plot(time_axis, audio_data, color='#2E86DE', linewidth=0.5, alpha=0.8)
     ax.fill_between(time_axis, audio_data, alpha=0.3, color='#2E86DE')
     
-    # 메트로놈 그리드 - 모두 빨간 점선으로 통일
-    beat_interval = 60.0 / bpm  # 초 단위 (1박)
-    chromatic_interval = beat_interval / 2  # 8분음표
+    # 메트로놈 그리드 계산
+    beat_interval = 60.0 / bpm
     
-    # 모든 그리드 포인트 수집 (1박 + 8분음표)
-    all_grid_points = []
-    
-    # 1박 단위
+    # 4박자 단위 그리드 (빨간 실선/점선)
     beat_positions = np.arange(0, duration, beat_interval)
-    all_grid_points.extend(beat_positions)
+    for i, pos in enumerate(beat_positions):
+        if i % 4 == 0:
+            ax.axvline(pos, color='#FF4757', linestyle='-', linewidth=1.5, alpha=0.8)
+        else:
+            ax.axvline(pos, color='#FF6B6B', linestyle='--', linewidth=1.0, alpha=0.6)
     
-    # 크로매틱 (8분음표 - 박 사이)
+    # 시각적 분석을 위한 8분음표 보조선 (소리는 나지 않지만 연주 타이밍 확인용)
     if CHROMATIC_ENABLED:
-        chromatic_positions = np.arange(chromatic_interval, duration, beat_interval)
-        all_grid_points.extend(chromatic_positions)
-    
-    # 정렬 후 중복 제거
-    all_grid_points = sorted(set(all_grid_points))
-    
-    # 모든 그리드를 빨간 점선으로 그리기
-    for grid_pos in all_grid_points:
-        ax.axvline(grid_pos, color='#FF6B6B', linestyle='--', 
-                   linewidth=1.5, alpha=0.7)
+        chromatic_positions = np.arange(beat_interval / 2, duration, beat_interval)
+        for pos in chromatic_positions:
+            ax.axvline(pos, color='#70a1ff', linestyle=':', linewidth=0.8, alpha=0.3)
     
     # 스타일링
     ax.set_xlim(0, duration)
@@ -131,9 +114,7 @@ def create_waveform_with_metronome(audio_data, bpm, sample_rate):
     ax.set_xlabel('Time (seconds)', fontsize=13, fontweight='bold')
     ax.set_ylabel('Amplitude', fontsize=13, fontweight='bold')
     
-    title = f'Guitar Performance Analysis | {bpm} BPM'
-    if CHROMATIC_ENABLED:
-        title += ' (8th Note Grid)'
+    title = f'Guitar Performance Analysis | {bpm} BPM | 4-Beat Metronome'
     ax.set_title(title, fontsize=15, fontweight='bold', pad=20)
     
     ax.grid(True, alpha=0.2, linestyle='-', linewidth=0.5)
@@ -143,8 +124,8 @@ def create_waveform_with_metronome(audio_data, bpm, sample_rate):
     from matplotlib.patches import Patch
     legend_elements = [
         Patch(facecolor='#2E86DE', alpha=0.3, label='Guitar Signal'),
-        plt.Line2D([0], [0], color='#FF6B6B', linestyle='--', linewidth=1.5, 
-                   label=f'Grid ({bpm} BPM, 8th notes)'),
+        plt.Line2D([0], [0], color='#FF4757', linestyle='-', linewidth=1.5, label='Downbeat (Beat 1)'),
+        plt.Line2D([0], [0], color='#FF6B6B', linestyle='--', linewidth=1.0, label='Beats 2, 3, 4'),
     ]
     ax.legend(handles=legend_elements, loc='upper right', fontsize=10)
     
@@ -175,14 +156,15 @@ def record_and_analyze():
     sample_counter = 0
     is_recording = False
     
+    # 1박에 해당하는 샘플 수 계산
     beat_interval_samples = int(SAMPLE_RATE * 60.0 / METRONOME_BPM)
     
     print(f"{'='*70}")
-    print(f"🎸 심플 그리드 크로매틱 분석기 ({METRONOME_BPM} BPM)")
+    print(f"🎸 4비트 메트로놈 크로매틱 분석기 ({METRONOME_BPM} BPM)")
     print(f"{'='*70}")
     print(f"⏱️  카운트인: {COUNTIN_DURATION}초")
     print(f"📊 녹음 시간: {RECORD_DURATION}초")
-    print(f"🎵 박자: 4/4박자 (8분음표 그리드)")
+    print(f"🎵 설정: 모든 4박자 소리 출력 (8분음표 소리 제거)")
     print(f"{'='*70}\n")
     
     try:
@@ -191,26 +173,17 @@ def record_and_analyze():
         
         with sd.Stream(device=ASIO_DEVICE_ID,
                        samplerate=SAMPLE_RATE,
-                       blocksize=512,
+                       blocksize=BLOCK_SIZE,
                        dtype='float32',
                        channels=channels,
                        callback=audio_callback):
             
             metronome_active = True
             
-            print("🎼 카운트인 시작! (메트로놈만 들림)")
-            print("   준비하세요...\n")
+            print("🎼 카운트인 시작! 4비트 소리에 맞추어 준비하세요...")
+            sd.sleep(COUNTIN_DURATION * 1000)
             
-            beats_per_countin = int(COUNTIN_DURATION * METRONOME_BPM / 60)
-            for i in range(COUNTIN_DURATION, 0, -1):
-                current_bar = ((COUNTIN_DURATION - i) * METRONOME_BPM // 60) + 1
-                total_bars = beats_per_countin
-                bar_display = '█' * current_bar + '░' * (total_bars - current_bar)
-                print(f"  🎵 [{bar_display}] {i}초 전", end='\r')
-                sd.sleep(1000)
-            
-            print("\n\n🚀 녹음 시작! 크로매틱 연주 Go!\n")
-            
+            print("\n🚀 녹음 시작! 크로매틱 연주 Go!\n")
             is_recording = True
             
             for i in range(RECORD_DURATION, 0, -1):
@@ -233,7 +206,6 @@ def record_and_analyze():
         print("📊 분석 준비 완료!")
         print("="*70)
         print(f"✅ 이미지 파일: {filename}")
-        print(f"✅ Base64 길이: {len(img_base64):,} 문자")
         print("="*70)
         
         plt.show()
