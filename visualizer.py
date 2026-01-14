@@ -21,20 +21,28 @@ def create_waveform_with_metronome(audio_data):
     beat_interval = 60.0 / bpm
     beat_positions = np.arange(0, duration, beat_interval)
     
+    # 기본 메트로놈 박자 표시 (정박)
     for i, pos in enumerate(beat_positions):
-        if i % 4 == 0:
+        if i % config.BEATS_PER_BAR == 0:
             ax.axvline(pos, color="#FF4757", linestyle="-", linewidth=1.5, alpha=0.8)
         else:
             ax.axvline(pos, color="#FF6B6B", linestyle="--", linewidth=1.0, alpha=0.6)
 
+    # 설정된 음표 단위(4, 8, 16 등)에 따른 세부 그리드 표시
     if config.CHROMATIC_ENABLED:
-        chromatic_positions = np.arange(beat_interval / 2, duration, beat_interval)
+        # 1박(4분음표)을 기준으로 나눌 간격 계산 (예: 16분음표는 1박을 4개로 쪼갬)
+        subdivisions = config.CHROMATIC_BEATS / 4
+        chromatic_interval = beat_interval / subdivisions
+        chromatic_positions = np.arange(0, duration, chromatic_interval)
+        
         for pos in chromatic_positions:
-            ax.axvline(pos, color="#70a1ff", linestyle=":", linewidth=0.8, alpha=0.3)
+            # 이미 그려진 메트로놈 정박 선(beat_positions)과 겹치지 않는 경우에만 파란색 점선 추가
+            if not any(np.isclose(pos, beat_positions, atol=1e-5)):
+                ax.axvline(pos, color="#ff0000", linestyle=":", linewidth=1.0, alpha=0.6)
 
     ax.set_xlim(0, duration)
     ax.set_ylim(-1.1, 1.1)
-    ax.set_title(f"Guitar Analysis | {bpm} BPM", fontsize=15, fontweight="bold")
+    ax.set_title(f"Guitar Analysis | {bpm} BPM | {config.CHROMATIC_BEATS}th Notes", fontsize=15, fontweight="bold")
     ax.grid(True, alpha=0.2)
     
     plt.tight_layout()
