@@ -37,7 +37,7 @@ def create_waveform_with_metronome(audio_data, detected_indices=None):
             ax.axvline(pos, color="#FF0000", linestyle="-", linewidth=1.5, alpha=0.8, label="Bar Start" if i == 0 else "")
         # 약박
         else:
-            ax.axvline(pos, color="#FF0000", linestyle="-", linewidth=1.2, alpha=0.6, label="Beat" if i == 1 else "")
+            ax.axvline(pos, color="#F18B8B", linestyle="-", linewidth=1.2, alpha=0.6, label="Beat" if i == 1 else "")
 
     # 설정된 음표 단위(4, 8, 16 등)에 따른 세부 그리드 표시
     if config.CHROMATIC_ENABLED:
