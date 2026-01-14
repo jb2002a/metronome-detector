@@ -3,12 +3,14 @@ import numpy as np
 import config
 from utils import generate_sine_wave
 
-# 주의: 여기서 sounddevice를 import 하지만, 
-# main.py에서 이미 환경변수를 설정한 후 호출되므로 ASIO가 적용됩니다.
 
 class AudioHandler:
     def __init__(self):
-        self.recorded_data = []
+        # 리스트 대신 NumPy 배열을 미리 할당 (메모리 관리 최적화)
+        max_samples = int(config.SAMPLE_RATE * (config.RECORD_DURATION + 2)) # 여유분 포함
+        self.recorded_data = np.zeros(max_samples, dtype=np.float32)
+        self.write_ptr = 0  # 데이터를 기록할 위치 포인터
+        
         self.is_recording = False
         self.metronome_active = False
         
@@ -21,7 +23,9 @@ class AudioHandler:
         self.downbeat_sound = generate_sine_wave(50, 1200, config.SAMPLE_RATE) * 0.3
 
     def reset_state(self):
-        self.recorded_data = []
+        # 포인터 초기화
+        self.write_ptr = 0
+        self.recorded_data.fill(0) # 배열 내용 초기화
         self.current_beat = 0
         self.sample_counter = 0
         self.is_recording = False
@@ -34,7 +38,11 @@ class AudioHandler:
         amplified = np.clip(guitar_input * config.SOFTWARE_GAIN, -1.0, 1.0)
 
         if self.is_recording:
-            self.recorded_data.extend(amplified)
+            # 리스트 extend 대신 배열 구간에 직접 할당
+            end_ptr = self.write_ptr + frames
+            if end_ptr <= len(self.recorded_data):
+                self.recorded_data[self.write_ptr:end_ptr] = amplified
+                self.write_ptr = end_ptr
 
         output_signal = amplified.copy()
 
@@ -56,4 +64,5 @@ class AudioHandler:
             outdata[:, ch] = output_signal
 
     def get_recorded_array(self):
-        return np.array(self.recorded_data, dtype=np.float32)
+        # [수정] 실제 기록된 범위만 슬라이싱하여 반환
+        return self.recorded_data[:self.write_ptr].copy()
