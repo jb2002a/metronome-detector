@@ -1,7 +1,6 @@
 import os
 import sys
 
-# [중요] sounddevice를 import하기 전에 반드시 먼저 실행되어야 합니다.
 os.environ["SD_ENABLE_ASIO"] = "1"
 
 import sounddevice as sd
@@ -69,7 +68,7 @@ def main():
             return
 
         # 5.  피크 감지 수행 및 인덱스 획득
-        detected_indices = detect_and_print_specific_peaks(audio_data, threshold=0.25, silence_threshold=0.05)
+        detected_indices = detect_and_print_specific_peaks(audio_data, threshold=0.25, silence_threshold=0.1)
 
         # 6. 시각화 및 이미지 저장
         fig = create_waveform_with_metronome(audio_data, detected_indices=detected_indices)

@@ -11,7 +11,7 @@ SOFTWARE_GAIN = 60.0        # 소프트웨어 증폭
 
 # 음악적 설정
 METRONOME_BPM = 100
-COUNTIN_BARS = 1            # 카운트인 마디 수
+COUNTIN_BARS = 2            # 카운트인 마디 수
 BEATS_PER_BAR = 4           # 박자표 (4/4)
 
 # 시각화 설정

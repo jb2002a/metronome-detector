@@ -10,6 +10,7 @@ OUTPUT_DIR = "images"
 def create_waveform_with_metronome(audio_data, detected_indices=None):
     """
     음성 파형을 시각화하고 메트로놈 가이드 라인과 감지된 피크 지점을 표시합니다.
+    그리드와 어긋난 연주 지점에는 그래프 하단에 'X' 표시를 추가합니다.
     """
     duration = len(audio_data) / config.SAMPLE_RATE
     time_axis = np.linspace(0, duration, len(audio_data))
@@ -22,10 +23,13 @@ def create_waveform_with_metronome(audio_data, detected_indices=None):
     ax.plot(time_axis, audio_data, color="#2E86DE", linewidth=0.5, alpha=0.8, label="Guitar Signal")
     ax.fill_between(time_axis, audio_data, alpha=0.3, color="#2E86DE")
 
-    # 2. 메트로놈 박자 표시
+    # 2. 메트로놈 박자 및 그리드 생성
     beat_interval = 60.0 / bpm
     beat_positions = np.arange(0, duration, beat_interval)
     
+    # 전체 그리드 위치 저장 (정박 + 서브디비전)
+    target_grid_positions = list(beat_positions)
+
     # 기본 메트로놈 박자 표시 
     for i, pos in enumerate(beat_positions):
         # 강박
@@ -33,7 +37,7 @@ def create_waveform_with_metronome(audio_data, detected_indices=None):
             ax.axvline(pos, color="#FF0000", linestyle="-", linewidth=1.5, alpha=0.8, label="Bar Start" if i == 0 else "")
         # 약박
         else:
-            ax.axvline(pos, color="#FF0000", linestyle="--", linewidth=1.2, alpha=0.6, label="Beat" if i == 1 else "")
+            ax.axvline(pos, color="#FF0000", linestyle="-", linewidth=1.2, alpha=0.6, label="Beat" if i == 1 else "")
 
     # 설정된 음표 단위(4, 8, 16 등)에 따른 세부 그리드 표시
     if config.CHROMATIC_ENABLED:
@@ -43,17 +47,39 @@ def create_waveform_with_metronome(audio_data, detected_indices=None):
         
         for pos in chromatic_positions:
             if not any(np.isclose(pos, beat_positions, atol=1e-5)):
-                ax.axvline(pos, color="#ff0000", linestyle=":", linewidth=1.2, alpha=0.6)
+                ax.axvline(pos, color="#ff0000", linestyle="-", linewidth=1.2, alpha=0.6)
+                target_grid_positions.append(pos)
+    
+    target_grid_positions = np.sort(target_grid_positions)
 
-    # 3. attaack 지점 표시
+    # 3. Attack 지점 표시 및 어긋남 검사
     if detected_indices is not None and len(detected_indices) > 0:
+        # 허용 오차 설정 (30ms)
+        tolerance = 0.03 
+        
         first_mark = True
+        first_x_mark = True
+
         for idx in detected_indices:
             peak_time = idx / config.SAMPLE_RATE
-            # 감지된 공격 시점을 초록색 실선으로 표시
+            
+            # 현재 연주 지점이 그리드 중 하나와 근접한지 확인
+            is_on_grid = any(np.abs(target_grid_positions - peak_time) < tolerance)
+
+            # 연주 시작 지점 표시 (초록 점선)
             ax.axvline(peak_time, color="#2ECC71", linestyle="--", linewidth=1.2, alpha=0.9, 
                        label="Detected Attack" if first_mark else "")
             first_mark = False
+
+            # 그리드와 어긋난 경우 'X' 표시 추가 (하단 y=-0.6 위치)
+            if not is_on_grid:
+                ax.text(peak_time, -0.6, 'X', color='red', fontsize=15, fontweight='bold', 
+                        ha='center', va='center')
+                
+                # 범례를 위한 가짜 아티스트(Proxy Artist)
+                if first_x_mark:
+                    ax.plot([], [], 'rx', label="Off-Grid", markersize=10, markeredgewidth=2)
+                    first_x_mark = False
 
     # 그래프 스타일 설정
     ax.set_xlim(0, duration)
