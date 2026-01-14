@@ -68,10 +68,10 @@ def main():
             return
 
         # 5.  피크 감지 수행 및 인덱스 획득
-        detected_indices = detect_and_print_specific_peaks(audio_data, threshold=0.25, silence_threshold=0.1)
+        detected_indices = detect_and_print_specific_peaks(audio_data, threshold=config.THRESHOLD, silence_threshold=config.SILENCE_THRESHOLD)
 
         # 6. 시각화 및 이미지 저장
-        fig = create_waveform_with_metronome(audio_data, detected_indices=detected_indices)
+        fig = create_waveform_with_metronome(audio_data, detected_indices=detected_indices, tolerance=config.TOLERANCE)
         filename = save_analysis_image(fig)
 
         print(f"\n✅ 분석 완료: {filename}")

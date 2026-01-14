@@ -1,7 +1,7 @@
 import numpy as np
 import config
 
-def detect_and_print_specific_peaks(audio_array, threshold=0.25, silence_threshold=0.1):
+def detect_and_print_specific_peaks(audio_array, threshold, silence_threshold):
     """
     정적 상태(silence_threshold)에서 피크(threshold)로 치솟는 순간을 감지하여 인덱스 리스트를 반환합니다.
     """

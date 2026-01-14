@@ -17,3 +17,10 @@ BEATS_PER_BAR = 4           # 박자표 (4/4)
 # 시각화 설정
 CHROMATIC_ENABLED = True    # 시각화 그리드 표시 여부
 CHROMATIC_BEATS = 4        # 시각화 그리드 박자 수
+
+# 민감도 설정
+TOLERANCE = 0.03            # 민감도 조정용 허용 오차 (초)
+
+# 피크 설정
+THRESHOLD = 0.25          # 피크 감지 임계값
+SILENCE_THRESHOLD = 0.1   # 정적 상태 임계값

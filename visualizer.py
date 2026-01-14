@@ -7,7 +7,7 @@ import config
 # 이미지를 저장할 폴더명
 OUTPUT_DIR = "images"
 
-def create_waveform_with_metronome(audio_data, detected_indices=None):
+def create_waveform_with_metronome(audio_data, detected_indices=None, tolerance=0.03):
     """
     음성 파형을 시각화하고 메트로놈 가이드 라인과 감지된 피크 지점을 표시합니다.
     그리드와 어긋난 연주 지점에는 그래프 하단에 'X' 표시를 추가합니다.
@@ -54,9 +54,7 @@ def create_waveform_with_metronome(audio_data, detected_indices=None):
 
     # 3. Attack 지점 표시 및 어긋남 검사
     if detected_indices is not None and len(detected_indices) > 0:
-        # 허용 오차 설정 (30ms)
-        tolerance = 0.03 
-        
+
         first_mark = True
         first_x_mark = True
 
